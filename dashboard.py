@@ -29,8 +29,7 @@ PAGE_BG = deep_dive.PAGE_BG
 CARD_BG = deep_dive.CARD_BG
 ACCENT = deep_dive.ACCENT
 
-st.set_page_config(
-    page_title="Company Fundamental Analysis Tool", layout="wide")
+st.set_page_config(page_title="Company Fundamental Analysis Tool", layout="wide")
 
 st.markdown(
     f"""
@@ -64,13 +63,6 @@ if st.button("📄 View full README →"):
 if st.session_state["show_readme"]:
     with st.expander("README", expanded=True):
         _readme_path = Path(__file__).parent / "README.md"
-        st.info(
-            "📌 **This README is being rewritten in stages following the "
-            "Company Fundamental Analysis Tool repositioning.** Most of the "
-            "content below still describes the old scoring/ranking engine, "
-            "which has been removed. See the repositioning notice at the top "
-            "of the README itself for what's current vs. pending rewrite."
-        )
         if _readme_path.exists():
             st.markdown(_readme_path.read_text(encoding="utf-8"))
         else:
