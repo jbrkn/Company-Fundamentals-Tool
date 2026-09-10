@@ -2,12 +2,11 @@
 Company Deep Dive -- assembles and renders the full company analysis page.
 
 This module PULLS FROM every other module (data_pipeline, competitors,
-value_creation, sector_forecasts, sentiment_pipeline) but does not contain
-its own data-fetching or calculation logic that duplicates what's in those
-files. Its only jobs are: (1) thin caching wrappers around each module's
-fetch functions (so a Streamlit rerun doesn't refetch/recompute
-needlessly), and (2) Streamlit rendering calls that assemble those results
-into the page.
+value_creation, sector_forecasts) but does not contain its own
+data-fetching or calculation logic that duplicates what's in those files.
+Its only jobs are: (1) thin caching wrappers around each module's fetch
+functions (so a Streamlit rerun doesn't refetch/recompute needlessly), and
+(2) Streamlit rendering calls that assemble those results into the page.
 
 Public entry point: render(selected_ticker). dashboard.py calls this one
 function for whichever ticker is currently selected; it does not pass in
@@ -25,7 +24,13 @@ Section order matches the final consolidated spec:
     3.8 Competitors
     3.9 Ownership & Dilution
     3.10 Sector/Market
-    3.11 Sentiment (unchanged from original build)
+
+SENTIMENT REMOVED (Finnhub/FinBERT): sentiment was cut entirely due to
+ongoing API key friction -- not a bug fix, a deliberate removal. This
+includes the Sentiment tab, _cached_sentiment(), _cached_recent_headlines(),
+and the sentiment_pipeline.py module itself (deleted). If you see any
+reference to sentiment, Finnhub, or sentiment_pipeline anywhere in this
+codebase going forward, that's a regression -- it should all be gone.
 """
 
 from __future__ import annotations
@@ -42,7 +47,6 @@ import value_creation as vc
 from competitors import compute_sector_benchmark, discover_competitors, get_classification_for_ticker
 from data_pipeline import load_or_fetch_ticker
 from sector_forecasts import get_sector_forecast
-from sentiment_pipeline import fetch_recent_headlines_for_ticker, load_or_fetch_sentiment
 
 # ---------------------------------------------------------------------------
 # Style constants -- shared with dashboard.py's global CSS block so the
@@ -156,34 +160,8 @@ def _cached_ticker_fetch(ticker: str, _cache_date: str) -> dict:
 
 
 @st.cache_data(ttl=config.CACHE_TTL_HOURS * 3600)
-def _cached_sentiment(ticker: str, _cache_date: str) -> dict:
-    """BUG FIX: this used to discard the sentiment_error field entirely,
-    so a Finnhub API failure (auth, rate limit, malformed request) was
-    indistinguishable in the UI from "this ticker genuinely has zero
-    headlines" -- both rendered as a plain 0/N/A with no indication
-    anything had gone wrong. Now propagates sentiment_error through so the
-    Sentiment section can show an actual warning when the fetch failed,
-    rather than a misleading empty result.
-    """
-    df = load_or_fetch_sentiment([ticker])
-    if df.empty:
-        return {"sentiment_score": None, "coverage_volume": 0, "sentiment_error": "No data returned."}
-    row = df.iloc[0]
-    return {
-        "sentiment_score": row.get("sentiment_score"),
-        "coverage_volume": row.get("coverage_volume"),
-        "sentiment_error": row.get("sentiment_error"),
-    }
-
-
-@st.cache_data(ttl=config.CACHE_TTL_HOURS * 3600)
 def _cached_analyst_estimates(ticker: str, _cache_date: str):
     return fetch_analyst_estimates(ticker)
-
-
-@st.cache_data(ttl=config.CACHE_TTL_HOURS * 3600)
-def _cached_recent_headlines(ticker: str, _cache_date: str):
-    return fetch_recent_headlines_for_ticker(ticker, n=3)
 
 
 @st.cache_data(ttl=config.CACHE_TTL_HOURS * 3600)
@@ -350,10 +328,10 @@ def render(selected_ticker: str) -> None:
     projections = row.get("projections") or {}
 
     (tab_profit, tab_gearing, tab_valuation, tab_risk, tab_value_creation,
-     tab_competitors, tab_ownership, tab_sector, tab_sentiment) = st.tabs([
+     tab_competitors, tab_ownership, tab_sector) = st.tabs([
          "💰 Profitability", "🏦 Gearing/Debt", "🏷️ Valuation", "⚠️ Risk",
          "💎 Value Creation", "🏢 Competitors", "📊 Ownership & Dilution",
-         "🌐 Sector/Market", "📰 Sentiment",
+         "🌐 Sector/Market",
      ])
 
     # =========================================================================
@@ -816,46 +794,6 @@ def render(selected_ticker: str) -> None:
             forecast = get_sector_forecast(sector)
             st.metric("10yr forecast CAGR", forecast["display"])
             st.caption(f"Source: {forecast['source']}")
-
-    # =========================================================================
-    # TAB: Sentiment
-    # =========================================================================
-    with tab_sentiment:
-        st.caption(
-            "Standalone informational context — not a fundamental quality measure.")
-        sentiment = _cached_sentiment(selected_ticker, today_str)
-
-        # BUG FIX: sentiment_error used to be silently discarded, so a
-        # Finnhub API failure and a genuine "zero headlines" result were
-        # both rendered identically -- misleading. Surface the error
-        # explicitly now instead of a plain, unexplained zero.
-        if sentiment.get("sentiment_error"):
-            st.error(f"⚠️ Sentiment fetch failed: {sentiment['sentiment_error']}. "
-                     "This is NOT a genuine zero-coverage result -- check your "
-                     "FINNHUB_API_KEY and Finnhub account status.")
-        else:
-            scol1, scol2 = st.columns(2)
-            scol1.metric("Sentiment score", _fmt(
-                sentiment.get("sentiment_score")))
-            scol2.metric("Coverage volume (60-day headline count)",
-                         _fmt(sentiment.get("coverage_volume"), "num", 0))
-
-        headlines_result = _cached_recent_headlines(selected_ticker, today_str)
-        if headlines_result.get("error"):
-            st.error(f"⚠️ Recent-headlines fetch failed: {headlines_result['error']}. "
-                     "This is NOT a genuine zero-headlines result -- check your "
-                     "FINNHUB_API_KEY and Finnhub account status.")
-        elif headlines_result.get("headlines"):
-            st.markdown("**Most recent headlines feeding this score:**")
-            for h in headlines_result["headlines"]:
-                score_str = f"{h['sentiment_score']:+.2f}" if h.get(
-                    "sentiment_score") is not None else "n/a"
-                st.markdown(
-                    f"- *{h.get('datetime', '')}* — {h['headline']}  \n  (sentiment: {score_str})")
-        else:
-            st.caption("No recent headlines found for this ticker in the last "
-                       f"{config.SENTIMENT_LOOKBACK_DAYS} days (this is a genuine empty "
-                       "result, not a fetch failure).")
 
     st.markdown("---")
 

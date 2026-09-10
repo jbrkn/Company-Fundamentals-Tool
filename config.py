@@ -32,9 +32,7 @@ TICKER_CACHE_DIR = CACHE_DIR / "tickers"
 # concept anymore; any valid US ticker can be searched).
 CLASSIFICATION_FILE = DATA_DIR / "sp500_classification.csv"
 
-SENTIMENT_CACHE_DIR = CACHE_DIR / "sentiment"
-
-for _d in (DATA_DIR, CACHE_DIR, TICKER_CACHE_DIR, SENTIMENT_CACHE_DIR):
+for _d in (DATA_DIR, CACHE_DIR, TICKER_CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
@@ -48,21 +46,12 @@ for _d in (DATA_DIR, CACHE_DIR, TICKER_CACHE_DIR, SENTIMENT_CACHE_DIR):
 CACHE_TTL_HOURS = 20  # effectively "once per day"; below is a safety margin
 
 # ---------------------------------------------------------------------------
-# Rate limiting / retry (yfinance + Finnhub are both semi-official / free-tier
-# and intermittently throttle or drop fields with no clean error signal)
+# Rate limiting / retry (yfinance is semi-official/free-tier and
+# intermittently throttles or drops fields with no clean error signal)
 # ---------------------------------------------------------------------------
 YF_MAX_RETRIES = 4
 YF_BACKOFF_BASE_SECONDS = 2.0        # exponential backoff: base * 2**attempt
 YF_INTER_TICKER_SLEEP_SECONDS = 0.15  # small pause between sequential calls
-
-FINNHUB_MAX_CALLS_PER_MINUTE = 55     # free tier is 60/min; leave headroom
-FINNHUB_MAX_RETRIES = 3
-FINNHUB_BACKOFF_BASE_SECONDS = 3.0
-
-# ---------------------------------------------------------------------------
-# Sentiment window (unchanged -- Finnhub + FinBERT pipeline untouched per spec)
-# ---------------------------------------------------------------------------
-SENTIMENT_LOOKBACK_DAYS = 60  # within the 30-90 day range the spec allows
 
 # ---------------------------------------------------------------------------
 # Price history window
