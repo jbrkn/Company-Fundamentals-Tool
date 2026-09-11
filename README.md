@@ -60,10 +60,12 @@ separated sources:**
   consensus is shown, because standard analyst consensus data does not
   extend that far for individual companies — it would have to be
   fabricated, so it isn't included.
-- *(b) Model Extrapolation* — this project's own simple projection: the
-  trailing YoY revenue growth rate compounded forward, with net margin held
-  constant, out to 1/5/10 years. Explicitly labelled as illustrative, not a
-  forecast — see *Key Design Assumptions*.
+- *(b) Model Extrapolation* — this project's own simple projection: a
+  3-year revenue CAGR compounded forward (falling back to a 2-year or,
+  only if necessary, 1-year growth rate when full history isn't available
+  — the basis actually used is always shown in-app for the specific
+  company), with net margin held constant, out to 1/5/10 years. Explicitly
+  labelled as illustrative, not a forecast — see *Key Design Assumptions*.
 
 **ROIC (simple)**: intentionally shown as "Not computed" for most companies.
 Effective tax rate and invested capital aren't reliably computable from free
@@ -156,15 +158,19 @@ or 3–5 competitors) — never precomputed for the full S&P 500.
 
 ## Key Design Assumptions
 
-- **Forward projections (both profitability and leverage) hold net margin
-  and net debt constant**, compounding only the trailing revenue growth
-  rate forward. No deceleration, acceleration, or business-model transition
-  is modelled. The 5-year figure should be read as a rough illustration;
-  the 10-year figure should be read as an order-of-magnitude illustration
-  only — a decade of compounding today's growth rate at constant margins
-  can imply an absurd multiple of a company's current size, which is a
-  mechanical consequence of the projection method, not a considered
-  forecast.
+- **Forward projections** (both profitability and leverage) hold net margin
+  and net debt constant, compounding a **3-year revenue CAGR** forward
+  (falling back to a 2-year or, only if necessary, 1-year growth rate when
+  full history isn't available — the basis used is always shown in-app for
+  the specific company). This meaningfully reduces sensitivity to a single
+  unusual year compared to a pure year-over-year rate, but does not
+  eliminate the underlying limitation: no deceleration, acceleration, or
+  business-model transition is modelled. The 5-year figure should be read
+  as a rough illustration; the 10-year figure should be read as an
+  order-of-magnitude illustration only — a decade of compounding a recent
+  growth rate at constant margins can still imply an unrealistic multiple of
+  a company's current size for high-growth names, which is a mechanical
+  consequence of the projection method, not a considered forecast.
 - **ROIC/WACC uses flat, stated assumptions**, not each company's actual
   effective tax rate or a live-fitted equity risk premium: a flat corporate
   tax rate and a flat equity risk premium are used throughout, disclosed

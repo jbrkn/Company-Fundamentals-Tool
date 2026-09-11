@@ -651,6 +651,25 @@ def _compute_peg_ratio(info: dict, trailing_pe: float | None,
     return trailing_pe / (eps_growth_yoy * 100)
 
 
+def _extract_revenue_history(income_stmt: pd.DataFrame, max_years: int = 4) -> list[float | None]:
+    """Raw 'Total Revenue' values for up to `max_years` columns, ordered
+    MOST RECENT FIRST (matching yfinance's own column order), with None for
+    any missing/NaN year -- positional integrity matters here (index 0 =
+    current year, index 3 = 3 years ago) for fundamentals.
+    compute_projection_growth_rate's fallback logic, so this does NOT
+    .dropna() (which would shift positions and silently corrupt the
+    year-to-year alignment).
+    """
+    if income_stmt is None or income_stmt.empty or "Total Revenue" not in income_stmt.index:
+        return []
+    n = min(max_years, income_stmt.shape[1])
+    values = []
+    for col_idx in range(n):
+        val = income_stmt.loc["Total Revenue"].iloc[col_idx]
+        values.append(float(val) if pd.notna(val) else None)
+    return values
+
+
 def _compute_revenue_and_eps_growth(income_stmt: pd.DataFrame, info: dict,
                                     missing: list[str]) -> dict[str, float | None]:
     out = {"revenue_growth_yoy": None, "eps_growth_yoy": None}
@@ -920,10 +939,30 @@ def fetch_one_ticker(ticker: str) -> TickerFetchResult:
     # (no network access here) and should be sanity-checked against a
     # known source before being trusted.
 
+    # BUG FIX: forward projections used to compound raw['revenue_growth_yoy']
+    # (a single year's YoY rate) forward -- extremely sensitive to a single
+    # anomalous base year (confirmed: one exceptional year for NVDA
+    # mechanically compounded into a ~$33 trillion 10yr revenue figure).
+    # Replaced with a 3-year revenue CAGR (falling back to 2yr, then 1yr
+    # YoY only as a last resort) as the projection input specifically --
+    # revenue_growth_yoy itself is UNCHANGED and still used as-is for
+    # Sector Growth Context display and sector-average benchmarking
+    # elsewhere; this fix only touches what feeds the Model Extrapolation
+    # projections.
+    revenue_history = _extract_revenue_history(frames["income_stmt"])
+    projection_growth = fundamentals.compute_projection_growth_rate(
+        revenue_history)
+    raw["projection_growth_rate"] = projection_growth["rate"]
+    raw["projection_growth_basis"] = projection_growth["basis"]
+    raw["projection_growth_warning"] = projection_growth["warning"]
+    if projection_growth["warning"]:
+        missing.append(f"projection_growth_basis_{projection_growth['basis']}")
+
     # Forward projections (1yr/5yr/10yr) -- pure calc, delegated to
-    # fundamentals.py.
+    # fundamentals.py. Uses the 3yr-CAGR-with-fallback rate above, NOT
+    # growth["revenue_growth_yoy"] (see bug-fix note above).
     projections = fundamentals.compute_forward_projections(
-        revenue_ttm, ebitda, net_debt, raw["net_margin"], growth["revenue_growth_yoy"], missing
+        revenue_ttm, ebitda, net_debt, raw["net_margin"], projection_growth["rate"], missing
     )
     raw["projections"] = projections
     # Flat scalar kept for convenience/backward-compat with existing display code.

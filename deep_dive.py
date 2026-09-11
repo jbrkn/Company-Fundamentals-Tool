@@ -402,6 +402,25 @@ def render(selected_ticker: str) -> None:
             projections.get("current", {}).get("net_income"), "money"))
         pcol4.metric("Net Income (+10yr)",
                      _fmt(projections.get("10yr", {}).get("net_income"), "money"))
+
+        # BUG FIX: projections used to compound a single year's YoY revenue
+        # growth, which was extremely sensitive to one anomalous base year
+        # (a single unusual year for NVDA mechanically compounded into a
+        # ~$33 trillion 10yr figure). Now uses a 3-year revenue CAGR,
+        # falling back to 2yr then 1yr YoY only when full history isn't
+        # available -- the basis actually used for THIS company is always
+        # shown here, never silently hidden.
+        growth_basis = row.get("projection_growth_basis")
+        growth_warning = row.get("projection_growth_warning")
+        basis_label = {"3yr": "3-year revenue CAGR", "2yr": "2-year revenue CAGR",
+                       "1yr": "single-year YoY growth", "none": "no growth rate available"}.get(growth_basis, "unknown")
+        if growth_warning:
+            st.warning(
+                f"⚠️ Growth basis used for this company: **{basis_label}**. {growth_warning}")
+        else:
+            st.caption(
+                f"Growth basis used for this company: **{basis_label}**.")
+
         st.caption("⚠️ +10yr figures are naive extrapolation for illustrative comparison only, "
                    "increasingly unrealistic at longer horizons — see full detail below for "
                    "the +1yr/+5yr intermediate values and every stated assumption.")
@@ -454,10 +473,12 @@ def render(selected_ticker: str) -> None:
                     "Insufficient data to project revenue/net income for this company.")
 
             st.markdown(
-                """<div class="assumption-note">
+                f"""<div class="assumption-note">
                 <b>Assumptions (stated explicitly):</b><br>
-                1. Revenue growth continues at the <b>trailing YoY rate</b> at every horizon —
-                no deceleration/acceleration/business-model-transition modeled.<br>
+                1. Revenue growth continues at the <b>{basis_label}</b> at every horizon —
+                no deceleration/acceleration/business-model-transition modeled. A multi-year
+                CAGR (preferred over a single year's YoY rate) meaningfully reduces sensitivity
+                to one anomalous base year, but does not eliminate the underlying limitation.<br>
                 2. Net margin is assumed <b>constant</b> as revenue grows — no modeled margin
                 expansion or compression.
                 </div>""",
@@ -537,13 +558,24 @@ def render(selected_ticker: str) -> None:
 
         with st.expander("Show forward projection detail & trajectory chart"):
             st.markdown("**Forward Projections — Leverage**")
+
+            # Same growth basis as the Profitability tab (one growth rate,
+            # used consistently everywhere -- never a different rate in
+            # different sections). Always shown, never hidden.
+            if growth_warning:
+                st.warning(
+                    f"⚠️ Growth basis used for this company: **{basis_label}**. {growth_warning}")
+            else:
+                st.caption(
+                    f"Growth basis used for this company: **{basis_label}**.")
+
             st.markdown(
-                """<div class="assumption-note">
+                f"""<div class="assumption-note">
                 ⚠️ <b>5yr/10yr figures are naive extrapolation for illustrative comparison
                 only, increasingly unrealistic at longer horizons.</b><br><br>
                 <b>Assumptions:</b> Net debt held <b>constant</b> at every horizon (no modeled
                 paydown, refinancing, or new issuance) · EBITDA margin assumed <b>constant</b>
-                as revenue grows · revenue growth continues at the <b>trailing YoY rate</b>.
+                as revenue grows · revenue growth continues at the <b>{basis_label}</b>.
                 </div>""",
                 unsafe_allow_html=True,
             )
